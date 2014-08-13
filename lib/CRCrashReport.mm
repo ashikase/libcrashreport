@@ -9,6 +9,7 @@
 
 #import "CRCrashReport.h"
 
+#import <libpackageinfo/libpackageinfo.h>
 #import <libsymbolicate/libsymbolicate.h>
 #import <RegexKitLite/RegexKitLite.h>
 #import "CRBinaryImage.h"
@@ -206,6 +207,7 @@ static uint64_t uint64FromHexString(NSString *string) {
     NSDictionary *binaryImages = [self binaryImages];
 
     // If exception type is not white-listed, process blame.
+    // NOTE: Exception filters variable may be nil; conditional will pass.
     CRException *exception = [self exception];
     if (![exceptionFilters containsObject:[exception type]]) {
         // Mark which binary images are unblamable.
@@ -233,7 +235,8 @@ static uint64_t uint64FromHexString(NSString *string) {
                         }
                     }
                 } else if (filterType_ == CRCrashReportFilterTypePackage) {
-                    if ([binaryImage isFromDebianPackage]) {
+                    NSString *path = [binaryImage path];
+                    if (![PIDebianPackage isFromDebianPackage:path]) {
                         blamable = NO;
                     }
                 }
@@ -649,8 +652,6 @@ parse_thread:
                             if ([string length] > 0) {
                                 [packageDetails setObject:string forKey:@"Version"];
                             }
-                            [binaryImage setPackageDetails:packageDetails];
-                            [packageDetails release];
 
                             // Store package install date.
                             string = [array objectAtIndex:8];
@@ -660,13 +661,19 @@ parse_thread:
                                 if (strptime([string UTF8String], format, &time) != NULL) {
                                     NSDate *date = [[NSDate alloc] initWithTimeIntervalSince1970:mktime(&time)];
                                     if (date != nil) {
-                                        [binaryImage setPackageInstallDate:date];
+                                        [packageDetails setObject:date forKey:@"InstallDate"];
                                         [date release];
                                     }
                                 } else {
                                     fprintf(stderr, "WARNING: Unable to parse date: \"%s\".\n", [string UTF8String]);
                                 }
                             }
+
+                            PIDebianPackage *package = [[PIDebianPackage alloc] initWithPackageDetails:packageDetails];
+                            [packageDetails release];
+
+                            [[PIPackageCache sharedCache] cachePackage:package forFile:path];
+                            [package release];
                         }
                         [binaryImages setObject:binaryImage forKey:[NSNumber numberWithUnsignedLongLong:imageAddress]];
                         [binaryImage release];
@@ -801,48 +808,47 @@ static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableStr
 
         // Add binary images installed via dpkg.
         [description appendString:@"Binary Images (dpkg):\n"];
-#if 0
         for (NSString *key in imageAddresses) {
             CRBinaryImage *binaryImage = [binaryImages objectForKey:key];
-            if ([binaryImage isFromDebianPackage]) {
+            NSString *path = [binaryImage path];
+
+            if ([PIDebianPackage isFromDebianPackage:path]) {
                 addBinaryImageToDescription(binaryImage, description);
 
                 // Add package information, if available.
-                NSDictionary *packageDetails = [binaryImage packageDetails];
-                if (packageDetails != nil) {
-                    NSString *package = [packageDetails objectForKey:@"Package"];
-                    NSString *version = [packageDetails objectForKey:@"Version"];
+                PIPackage *package = [[PIPackageCache sharedCache] packageForFile:path];
+                if (package != nil) {
+                    NSString *identifier = [package identifier];
+                    NSString *version = [package version];
                     NSString *string = [[NSString alloc] initWithFormat:@" (%@ %@)",
-                            package ?: @"<unknown package>", version ?: @"<unknown version>"];
+                            identifier ?: @"<unknown package>", version ?: @"<unknown version>"];
                     [description appendString:string];
                     [string release];
-                }
 
-                // Add install date.
-                if (processingDeviceIsCrashedDevice_) {
-                    NSDate *packageInstallDate = [binaryImage packageInstallDate];
-                    if (packageInstallDate != nil) {
-                        // Format the date.
-                        char buf[29];
-                        const char *format = " [%Y-%m-%d %H:%M:%S %z]";
-                        time_t interval = (time_t)[packageInstallDate timeIntervalSince1970];
-                        if (strftime(buf, 29, format, gmtime(&interval)) > 0) {
-                            // Append to line.
-                            NSString *string = [[NSString alloc] initWithCString:buf encoding:NSUTF8StringEncoding];
-                            [description appendString:string];
-                            [string release];
-                        } else {
-                            fprintf(stderr, "WARNING: Unable to format time interval: \"%ld\".\n", interval);
+                    // Add install date.
+                    if (processingDeviceIsCrashedDevice_) {
+                        NSDate *installDate = [package installDate];
+                        if (installDate != nil) {
+                            // Format the date.
+                            char buf[29];
+                            const char *format = " [%Y-%m-%d %H:%M:%S %z]";
+                            time_t interval = (time_t)[installDate timeIntervalSince1970];
+                            if (strftime(buf, 29, format, gmtime(&interval)) > 0) {
+                                // Append to line.
+                                NSString *string = [[NSString alloc] initWithCString:buf encoding:NSUTF8StringEncoding];
+                                [description appendString:string];
+                                [string release];
+                            } else {
+                                fprintf(stderr, "WARNING: Unable to format time interval: \"%ld\".\n", interval);
+                            }
                         }
                     }
                 }
-#endif
 
                 [description appendString:@"\n"];
                 [usedImages addObject:binaryImage];
             }
         }
-#endif
         [description appendString:@"\n"];
 
         // Add binary images installed via App Store.
