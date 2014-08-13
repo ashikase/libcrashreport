@@ -12,7 +12,7 @@ libcrashreport_OBJC_FILES = \
     lib/CRException.mm \
     lib/CRStackFrame.mm \
     lib/CRThread.mm
-libcrashreport_LDFLAGS = -licucore -lsymbolicate
+libcrashreport_LDFLAGS = -licucore -Llib -lpackageinfo -lsymbolicate
 ADDITIONAL_CFLAGS = -DPKG_ID=\"$(PKG_ID)\" -ICommon -ILibraries -Iinclude
 
 include theos/makefiles/common.mk
