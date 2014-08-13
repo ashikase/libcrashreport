@@ -1,0 +1,29 @@
+LIBRARY_NAME = libcrashreport
+PKG_ID = jp.ashikase.libcrashreport
+
+libcrashreport_INSTALL_PATH = /usr/lib
+libcrashreport_OBJC_FILES = \
+    Common/dpkg_util.m \
+    Libraries/RegexKitLite/RegexKitLite.m \
+    lib/common.c \
+    lib/CRBacktrace.mm \
+    lib/CRBinaryImage.mm \
+    lib/CRCrashReport.mm \
+    lib/CRException.mm \
+    lib/CRStackFrame.mm \
+    lib/CRThread.mm
+libcrashreport_LDFLAGS = -licucore -lsymbolicate
+ADDITIONAL_CFLAGS = -DPKG_ID=\"$(PKG_ID)\" -ICommon -ILibraries -Iinclude
+
+include theos/makefiles/common.mk
+include $(THEOS)/makefiles/library.mk
+
+after-stage::
+	# Remove repository-related files.
+	- find $(THEOS_STAGING_DIR) -name '.gitkeep' -delete
+	# Copy header files to include directory.
+	- cp $(THEOS_PROJECT_DIR)/include/*.h $(THEOS_STAGING_DIR)/usr/include/libcrashreport/
+
+distclean: clean
+	- rm -f $(THEOS_PROJECT_DIR)/$(PKG_ID)*.deb
+	- rm -f $(THEOS_PROJECT_DIR)/.theos/packages/*

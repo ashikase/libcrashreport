@@ -1,0 +1,21 @@
+Copyright (C) 2014  Lance Fetters (aka. ashikase)
+
+This project is based upon CrashReporter, originally developed by KennyTM~.
+http://networkpx.googlecode.com/svn/trunk/CrashReporter/?r=623
+Copyright (C) 2009  KennyTM~ <kennytm@gmail.com>
+
+CrashReporter was released under the GPL v3 license. Though this library is
+based upon that code, it has been released under the LGPL with permission from
+the original developer, KennyTM~.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Lesser General Public License for more details.
+
+The GNU Lesser General Public License can be found at <http://www.gnu.org/licenses/>.
