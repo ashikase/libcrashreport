@@ -17,6 +17,7 @@
 #import "CRThread.h"
 
 #include <notify.h>
+#include <time.h>
 #include "common.h"
 #include "system_info.h"
 
@@ -43,6 +44,7 @@ static uint64_t uint64FromHexString(NSString *string) {
 
 @implementation CRCrashReport {
     CRCrashReportFilterType filterType_;
+    BOOL isAlreadySymbolicated_;
     BOOL processingDeviceIsCrashedDevice_;
 }
 
@@ -141,6 +143,9 @@ static uint64_t uint64FromHexString(NSString *string) {
         // Store filter type.
         filterType_ = filterType;
 
+        // Check if this log has already been symbolicated (by libsymbolicate).
+        isAlreadySymbolicated_ = [[properties_ objectForKey:kCrashReportSymbolicated] boolValue];
+
         // Parse the file.
         [self parse];
     }
@@ -209,7 +214,6 @@ static uint64_t uint64FromHexString(NSString *string) {
 
             // Determine if binary image should not be blamed.
             BOOL blamable = YES;
-#if 0
             if ([[binaryImage binaryInfo] isFromSharedCache]) {
                 // Don't blame anything from the shared cache.
                 blamable = NO;
@@ -234,7 +238,6 @@ static uint64_t uint64FromHexString(NSString *string) {
                     }
                 }
             }
-#endif
             [binaryImage setBlamable:blamable];
         }
 
@@ -616,9 +619,9 @@ parse_thread:
                     break;
 
                 case ModeBinaryImage: {
-                    NSArray *array = [line captureComponentsMatchedByRegex:@"^ *0x([0-9a-f]+) - *0x([0-9a-f]+) [ +]?(?:.+?) (arm\\w*) *(<[0-9a-f]{32}>) *(.+?)(?: \\(.*?\\))?(?: \\[.*?\\])?$"];
+                    NSArray *array = [line captureComponentsMatchedByRegex:@"^ *0x([0-9a-f]+) - *0x([0-9a-f]+) [ +]?(?:.+?) (arm\\w*) *(<[0-9a-f]{32}>) *(.+?)(?: \\((.*?) (.*?)\\))?( \\[.*?\\])?$"];
                     NSUInteger count = [array count];
-                    if (count == 6) {
+                    if (count == 9) {
                         uint64_t imageAddress = uint64FromHexString([array objectAtIndex:1]);
                         uint64_t size = uint64FromHexString([array objectAtIndex:2]) - imageAddress;
                         NSString *architecture = [array objectAtIndex:3];
@@ -629,6 +632,41 @@ parse_thread:
                         [binaryImage setSize:size];
                         if ([path isEqualToString:processPath]) {
                             [binaryImage setCrashedProcess:YES];
+                        }
+
+                        // If already symbolicated, capture any previously
+                        // recorded debian package information.
+                        if (isAlreadySymbolicated_) {
+                            NSMutableDictionary *packageDetails = [[NSMutableDictionary alloc] init];
+
+                            // Store package details.
+                            NSString *string;
+                            string = [array objectAtIndex:6];
+                            if ([string length] > 0) {
+                                [packageDetails setObject:string forKey:@"Package"];
+                            }
+                            string = [array objectAtIndex:7];
+                            if ([string length] > 0) {
+                                [packageDetails setObject:string forKey:@"Version"];
+                            }
+                            [binaryImage setPackageDetails:packageDetails];
+                            [packageDetails release];
+
+                            // Store package install date.
+                            string = [array objectAtIndex:8];
+                            if ([string length] > 0) {
+                                struct tm time;
+                                const char *format = " [%Y-%m-%d %H:%M:%S %z]";
+                                if (strptime([string UTF8String], format, &time) != NULL) {
+                                    NSDate *date = [[NSDate alloc] initWithTimeIntervalSince1970:mktime(&time)];
+                                    if (date != nil) {
+                                        [binaryImage setPackageInstallDate:date];
+                                        [date release];
+                                    }
+                                } else {
+                                    fprintf(stderr, "WARNING: Unable to parse date: \"%s\".\n", [string UTF8String]);
+                                }
+                            }
                         }
                         [binaryImages setObject:binaryImage forKey:[NSNumber numberWithUnsignedLongLong:imageAddress]];
                         [binaryImage release];
