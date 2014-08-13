@@ -788,14 +788,17 @@ static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableStr
                         char buf[29];
                         const char *format = " [%Y-%m-%d %H:%M:%S %z]";
                         time_t interval = (time_t)[packageInstallDate timeIntervalSince1970];
-                        strftime(buf, 29, format, gmtime(&interval));
-
-                        // Append to line.
-                        NSString *string = [[NSString alloc] initWithCString:buf encoding:NSUTF8StringEncoding];
-                        [description appendString:string];
-                        [string release];
+                        if (strftime(buf, 29, format, gmtime(&interval)) > 0) {
+                            // Append to line.
+                            NSString *string = [[NSString alloc] initWithCString:buf encoding:NSUTF8StringEncoding];
+                            [description appendString:string];
+                            [string release];
+                        } else {
+                            fprintf(stderr, "WARNING: Unable to format time interval: \"%ld\".\n", interval);
+                        }
                     }
                 }
+#endif
 
                 [description appendString:@"\n"];
                 [usedImages addObject:binaryImage];
