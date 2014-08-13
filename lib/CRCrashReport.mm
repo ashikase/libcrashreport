@@ -209,6 +209,7 @@ static uint64_t uint64FromHexString(NSString *string) {
 
             // Determine if binary image should not be blamed.
             BOOL blamable = YES;
+#if 0
             if ([[binaryImage binaryInfo] isFromSharedCache]) {
                 // Don't blame anything from the shared cache.
                 blamable = NO;
@@ -233,6 +234,7 @@ static uint64_t uint64FromHexString(NSString *string) {
                     }
                 }
             }
+#endif
             [binaryImage setBlamable:blamable];
         }
 
@@ -761,6 +763,7 @@ static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableStr
 
         // Add binary images installed via dpkg.
         [description appendString:@"Binary Images (dpkg):\n"];
+#if 0
         for (NSString *key in imageAddresses) {
             CRBinaryImage *binaryImage = [binaryImages objectForKey:key];
             if ([binaryImage isFromDebianPackage]) {
@@ -798,6 +801,7 @@ static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableStr
                 [usedImages addObject:binaryImage];
             }
         }
+#endif
         [description appendString:@"\n"];
 
         // Add binary images installed via App Store.

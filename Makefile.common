@@ -3,7 +3,6 @@ PKG_ID = jp.ashikase.libcrashreport
 
 libcrashreport_INSTALL_PATH = /usr/lib
 libcrashreport_OBJC_FILES = \
-    Common/dpkg_util.m \
     Libraries/RegexKitLite/RegexKitLite.m \
     lib/common.c \
     lib/CRBacktrace.mm \
