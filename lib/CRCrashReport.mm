@@ -522,8 +522,6 @@ static CRStackFrame *stackFrameWithString(NSString *string) {
                         if ([array count] == 3) {
                             NSString *key = [array objectAtIndex:1];
                             NSString *object = [array objectAtIndex:2];
-                            [processInfoKeys addObject:key];
-                            [processInfoObjects addObject:object];
 
                             if ([key isEqualToString:@"CrashReporter Key"]) {
                                 // Record whether device executing this code is the one that crashed.
@@ -531,18 +529,21 @@ static CRStackFrame *stackFrameWithString(NSString *string) {
                                     processingDeviceIsCrashedDevice_ = YES;
                                 }
                             } else if ([key isEqualToString:@"Path"]) {
-                                processPath = object;
-
                                 // NOTE: For some reason, the process path
                                 //       is sometimes prefixed with multiple '/'
                                 //       characters.
-                                NSRange range = [processPath rangeOfRegex:@"^/+"];
+                                NSRange range = [object rangeOfRegex:@"^/+"];
                                 if ((range.location == 0) && (range.length > 1)) {
-                                    processPath = [processPath substringFromIndex:(range.length - 1)];
+                                    object = [object substringFromIndex:(range.length - 1)];
                                 }
+                                processPath = object;
+
                             } else if ([key isEqualToString:@"Exception Type"]) {
                                 [exception setType:object];
                             }
+
+                            [processInfoKeys addObject:key];
+                            [processInfoObjects addObject:object];
                         }
                         break;
                     } else {
