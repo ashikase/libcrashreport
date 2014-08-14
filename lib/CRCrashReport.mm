@@ -677,7 +677,7 @@ parse_thread:
                             PIDebianPackage *package = [[PIDebianPackage alloc] initWithPackageDetails:packageDetails];
                             [packageDetails release];
 
-                            [[PIPackageCache sharedCache] cachePackage:package forFile:path];
+                            [binaryImage setPackage:package];
                             [package release];
                         }
                         [binaryImages setObject:binaryImage forKey:[NSNumber numberWithUnsignedLongLong:imageAddress]];
@@ -821,7 +821,10 @@ static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableStr
                 addBinaryImageToDescription(binaryImage, description);
 
                 // Add package information, if available.
-                PIPackage *package = [[PIPackageCache sharedCache] packageForFile:path];
+                PIPackage *package = [binaryImage package];
+                if (package == nil) {
+                    package = [PIPackage packageForFile:path];
+                }
                 if (package != nil) {
                     // Add package identifier and version.
                     NSString *identifier = [package identifier];

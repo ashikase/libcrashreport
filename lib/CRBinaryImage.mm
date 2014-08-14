@@ -9,6 +9,7 @@
 
 #import "CRBinaryImage.h"
 
+#import <libpackageinfo/libpackageinfo.h>
 #import <libsymbolicate/libsymbolicate.h>
 
 @implementation CRBinaryImage
@@ -18,6 +19,7 @@
 @synthesize architecture = architecture_;
 @synthesize uuid = uuid_;
 @synthesize binaryInfo = binaryInfo_;
+@synthesize package = package_;
 @synthesize blamable = blamable_;
 
 - (id)initWithPath:(NSString *)path address:(uint64_t)address architecture:(NSString *)architecture uuid:(NSString *)uuid {
@@ -37,6 +39,7 @@
     [uuid_ release];
     [path_ release];
     [binaryInfo_ release];
+    [package_ release];
     [super dealloc];
 }
 

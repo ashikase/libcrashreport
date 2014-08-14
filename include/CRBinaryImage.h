@@ -7,6 +7,7 @@
  * License: LGPL v3 (See LICENSE file for details)
  */
 
+@class PIPackage;
 @class SCBinaryInfo;
 
 @interface CRBinaryImage : NSObject
@@ -15,6 +16,7 @@
 @property(nonatomic, readonly) NSString *architecture;
 @property(nonatomic, readonly) NSString *uuid;
 @property(nonatomic, readonly) SCBinaryInfo *binaryInfo;
+@property(nonatomic, retain) PIPackage *package;
 @property(nonatomic, assign) uint64_t size;
 @property(nonatomic, getter = isBlamable) BOOL blamable;
 @property(nonatomic, getter = isCrashedProcess) BOOL crashedProcess;
