@@ -622,9 +622,9 @@ parse_thread:
                     break;
 
                 case ModeBinaryImage: {
-                    NSArray *array = [line captureComponentsMatchedByRegex:@"^ *0x([0-9a-f]+) - *0x([0-9a-f]+) [ +]?(?:.+?) (arm\\w*) *(<[0-9a-f]{32}>) *(.+?)(?: \\((.*?) (.*?)\\))?( \\[.*?\\])?$"];
+                    NSArray *array = [line captureComponentsMatchedByRegex:@"^ *0x([0-9a-f]+) - *0x([0-9a-f]+) [ +]?(?:.+?) (arm\\w*) *(<[0-9a-f]{32}>) *(.+?)(?: \\((.*?) (.*?)\\) \\[(.*?)?\\] \"(.*?)\")?$"];
                     NSUInteger count = [array count];
-                    if (count == 9) {
+                    if (count == 10) {
                         uint64_t imageAddress = uint64FromHexString([array objectAtIndex:1]);
                         uint64_t size = uint64FromHexString([array objectAtIndex:2]) - imageAddress;
                         NSString *architecture = [array objectAtIndex:3];
@@ -652,12 +652,16 @@ parse_thread:
                             if ([string length] > 0) {
                                 [packageDetails setObject:string forKey:@"Version"];
                             }
+                            string = [array objectAtIndex:9];
+                            if ([string length] > 0) {
+                                [packageDetails setObject:string forKey:@"Name"];
+                            }
 
                             // Store package install date.
                             string = [array objectAtIndex:8];
                             if ([string length] > 0) {
                                 struct tm time;
-                                const char *format = " [%Y-%m-%d %H:%M:%S %z]";
+                                const char *format = "%Y-%m-%d %H:%M:%S %z";
                                 if (strptime([string UTF8String], format, &time) != NULL) {
                                     NSDate *date = [[NSDate alloc] initWithTimeIntervalSince1970:mktime(&time)];
                                     if (date != nil) {
@@ -818,20 +822,23 @@ static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableStr
                 // Add package information, if available.
                 PIPackage *package = [[PIPackageCache sharedCache] packageForFile:path];
                 if (package != nil) {
+                    // Add package identifier and version.
                     NSString *identifier = [package identifier];
                     NSString *version = [package version];
                     NSString *string = [[NSString alloc] initWithFormat:@" (%@ %@)",
-                            identifier ?: @"<unknown package>", version ?: @"<unknown version>"];
+                            identifier ?: @"<unknown package>",
+                            version ?: @"<unknown version>"];
                     [description appendString:string];
                     [string release];
 
                     // Add install date.
+                    [description appendString:@" ["];
                     if (processingDeviceIsCrashedDevice_) {
                         NSDate *installDate = [package installDate];
                         if (installDate != nil) {
                             // Format the date.
                             char buf[29];
-                            const char *format = " [%Y-%m-%d %H:%M:%S %z]";
+                            const char *format = "%Y-%m-%d %H:%M:%S %z";
                             time_t interval = (time_t)[installDate timeIntervalSince1970];
                             if (strftime(buf, 29, format, gmtime(&interval)) > 0) {
                                 // Append to line.
@@ -843,6 +850,14 @@ static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableStr
                             }
                         }
                     }
+                    [description appendString:@"]"];
+
+                    // Add package name.
+                    NSString *name = [package name];
+                    string = [[NSString alloc] initWithFormat:@" \"%@\"",
+                            name ?: @"<unknown name>"];
+                    [description appendString:string];
+                    [string release];
                 }
 
                 [description appendString:@"\n"];
