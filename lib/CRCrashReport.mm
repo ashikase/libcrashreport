@@ -632,8 +632,7 @@ parse_thread:
                         NSString *uuid = [array objectAtIndex:4];
                         NSString *path = [array objectAtIndex:5];
 
-                        CRBinaryImage *binaryImage = [[CRBinaryImage alloc] initWithPath:path address:imageAddress architecture:architecture uuid:uuid];
-                        [binaryImage setSize:size];
+                        CRBinaryImage *binaryImage = [[CRBinaryImage alloc] initWithPath:path address:imageAddress size:size architecture:architecture uuid:uuid];
                         if ([path isEqualToString:processPath]) {
                             [binaryImage setCrashedProcess:YES];
                         }

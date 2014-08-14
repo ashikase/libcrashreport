@@ -14,19 +14,21 @@
 
 @implementation CRBinaryImage
 
-@synthesize address = address_;
 @synthesize path = path_;
+@synthesize address = address_;
+@synthesize size = size_;
 @synthesize architecture = architecture_;
 @synthesize uuid = uuid_;
 @synthesize binaryInfo = binaryInfo_;
 @synthesize package = package_;
 @synthesize blamable = blamable_;
 
-- (id)initWithPath:(NSString *)path address:(uint64_t)address architecture:(NSString *)architecture uuid:(NSString *)uuid {
+- (id)initWithPath:(NSString *)path address:(uint64_t)address size:(uint64_t)size architecture:(NSString *)architecture uuid:(NSString *)uuid {
     self = [super init];
     if (self != nil) {
         path_ = [path copy];
         address_ = address;
+        size_ = size;
         architecture_ = [architecture copy];
         uuid_ = [uuid copy];
         blamable_ = YES;
@@ -35,9 +37,9 @@
 }
 
 - (void)dealloc {
+    [path_ release];
     [architecture_ release];
     [uuid_ release];
-    [path_ release];
     [binaryInfo_ release];
     [package_ release];
     [super dealloc];
