@@ -840,7 +840,7 @@ static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableStr
                             char buf[29];
                             const char *format = "%Y-%m-%d %H:%M:%S %z";
                             time_t interval = (time_t)[installDate timeIntervalSince1970];
-                            if (strftime(buf, 29, format, gmtime(&interval)) > 0) {
+                            if (strftime(buf, 29, format, localtime(&interval)) > 0) {
                                 // Append to line.
                                 NSString *string = [[NSString alloc] initWithCString:buf encoding:NSUTF8StringEncoding];
                                 [description appendString:string];
