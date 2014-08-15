@@ -31,7 +31,6 @@
         size_ = size;
         architecture_ = [architecture copy];
         uuid_ = [uuid copy];
-        blamable_ = YES;
     }
     return self;
 }
