@@ -1,9 +1,3 @@
 [submodule "Common"]
 	path = Common
 	url = http://github.com/ashikase/Common
-[submodule "Libraries/libsymbolicate"]
-	path = Libraries/libsymbolicate
-	url = http://github.com/ashikase/libsymbolicate
-[submodule "Libraries/libpackageinfo"]
-	path = Libraries/libpackageinfo
-	url = http://github.com/ashikase/libpackageinfo
