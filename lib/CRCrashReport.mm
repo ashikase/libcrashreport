@@ -623,16 +623,18 @@ parse_thread:
                     break;
 
                 case ModeBinaryImage: {
-                    NSArray *array = [line captureComponentsMatchedByRegex:@"^ *0x([0-9a-f]+) - *0x([0-9a-f]+) [ +]?(?:.+?) (arm\\w*) *(<[0-9a-f]{32}>) *(.+?)(?: \\((.*?) (.*?)\\) \\[(.*?)?\\] \"(.*?)\")?$"];
+                    NSArray *array = [line captureComponentsMatchedByRegex:@"^ *0x([0-9a-f]+) - *0x([0-9a-f]+)(?: ([ +]{1}))? (?:.+?) (arm\\w*) *(<[0-9a-f]{32}>) *(.+?)(?: \\((.*?) (.*?)\\) \\[(.*?)?\\] \"(.*?)\")?$"];
                     NSUInteger count = [array count];
-                    if (count == 10) {
+                    if (count == 11) {
                         uint64_t imageAddress = uint64FromHexString([array objectAtIndex:1]);
                         uint64_t size = uint64FromHexString([array objectAtIndex:2]) - imageAddress;
-                        NSString *architecture = [array objectAtIndex:3];
-                        NSString *uuid = [array objectAtIndex:4];
-                        NSString *path = [array objectAtIndex:5];
+                        NSString *architecture = [array objectAtIndex:4];
+                        NSString *uuid = [array objectAtIndex:5];
+                        NSString *path = [array objectAtIndex:6];
 
                         CRBinaryImage *binaryImage = [[CRBinaryImage alloc] initWithPath:path address:imageAddress size:size architecture:architecture uuid:uuid];
+                        [binaryImage setBlamable:[[array objectAtIndex:3] isEqualToString:@"+"]];
+
                         if ([path isEqualToString:processPath]) {
                             [binaryImage setCrashedProcess:YES];
                         }
@@ -644,21 +646,21 @@ parse_thread:
 
                             // Store package details.
                             NSString *string;
-                            string = [array objectAtIndex:6];
+                            string = [array objectAtIndex:7];
                             if ([string length] > 0) {
                                 [packageDetails setObject:string forKey:@"Package"];
                             }
-                            string = [array objectAtIndex:7];
+                            string = [array objectAtIndex:8];
                             if ([string length] > 0) {
                                 [packageDetails setObject:string forKey:@"Version"];
                             }
-                            string = [array objectAtIndex:9];
+                            string = [array objectAtIndex:10];
                             if ([string length] > 0) {
                                 [packageDetails setObject:string forKey:@"Name"];
                             }
 
                             // Store package install date.
-                            string = [array objectAtIndex:8];
+                            string = [array objectAtIndex:9];
                             if ([string length] > 0) {
                                 struct tm time;
                                 const char *format = "%Y-%m-%d %H:%M:%S %z";
@@ -715,8 +717,10 @@ parse_thread:
 static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableString *description) {
     uint64_t imageAddress = [binaryImage address];
     NSString *path = [binaryImage path];
-    NSString *string = [[NSString alloc] initWithFormat:@"0x%08llx - 0x%08llx %@ %@  %@ %@",
-             imageAddress, imageAddress + [binaryImage size], [path lastPathComponent], [binaryImage architecture], [binaryImage uuid], path];
+    NSString *string = [[NSString alloc] initWithFormat:@"0x%08llx - 0x%08llx %@ %@ %@  %@ %@",
+             imageAddress, imageAddress + [binaryImage size],
+             [binaryImage isBlamable] ? @"+" : @" ",
+             [path lastPathComponent], [binaryImage architecture], [binaryImage uuid], path];
     [description appendString:string];
     [string release];
 }
