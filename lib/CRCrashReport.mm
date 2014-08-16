@@ -623,9 +623,14 @@ parse_thread:
                     break;
 
                 case ModeBinaryImage: {
-                    NSArray *array = [line captureComponentsMatchedByRegex:@"^ *0x([0-9a-f]+) - *0x([0-9a-f]+)(?: ([ +]{1}))? (?:.+?) (arm\\w*) *(<[0-9a-f]{32}>) *(.+?)(?: \\((.*?) (.*?)\\) \\[(.*?)?\\] \"(.*?)\")?$"];
+                    // NOTE: The " (" non-capture at the end is to support log
+                    //      files symbolicated with libsymbolicate v1.5.0(.1),
+                    //      which used a different format for appending package
+                    //      information.
+                    // TODO: Consider removing " (" at some point.
+                    NSArray *array = [line captureComponentsMatchedByRegex:@"^ *0x([0-9a-f]+) - *0x([0-9a-f]+)(?: ([ +]{1}))? (?:.+?) (arm\\w*) *(<[0-9a-f]{32}>) *(.+?)(?:$| \\(| (\\{.*\\}))"];
                     NSUInteger count = [array count];
-                    if (count == 11) {
+                    if (count == 8) {
                         uint64_t imageAddress = uint64FromHexString([array objectAtIndex:1]);
                         uint64_t size = uint64FromHexString([array objectAtIndex:2]) - imageAddress;
                         NSString *architecture = [array objectAtIndex:4];
@@ -640,46 +645,16 @@ parse_thread:
                         }
 
                         // If already symbolicated, capture any previously
-                        // recorded debian package information.
+                        // recorded package information.
+                        // NOTE: Currently this is only done for binaries from
+                        //       debian packages.
                         if (isAlreadySymbolicated_) {
-                            NSMutableDictionary *packageDetails = [[NSMutableDictionary alloc] init];
-
-                            // Store package details.
-                            NSString *string;
-                            string = [array objectAtIndex:7];
+                            NSString *string = [array objectAtIndex:7];
                             if ([string length] > 0) {
-                                [packageDetails setObject:string forKey:@"Package"];
+                                PIDebianPackage *package = [[PIDebianPackage alloc] initWithDetailsFromJSONString:string];
+                                [binaryImage setPackage:package];
+                                [package release];
                             }
-                            string = [array objectAtIndex:8];
-                            if ([string length] > 0) {
-                                [packageDetails setObject:string forKey:@"Version"];
-                            }
-                            string = [array objectAtIndex:10];
-                            if ([string length] > 0) {
-                                [packageDetails setObject:string forKey:@"Name"];
-                            }
-
-                            // Store package install date.
-                            string = [array objectAtIndex:9];
-                            if ([string length] > 0) {
-                                struct tm time;
-                                const char *format = "%Y-%m-%d %H:%M:%S %z";
-                                if (strptime([string UTF8String], format, &time) != NULL) {
-                                    NSDate *date = [[NSDate alloc] initWithTimeIntervalSince1970:mktime(&time)];
-                                    if (date != nil) {
-                                        [packageDetails setObject:date forKey:@"InstallDate"];
-                                        [date release];
-                                    }
-                                } else {
-                                    fprintf(stderr, "WARNING: Unable to parse date: \"%s\".\n", [string UTF8String]);
-                                }
-                            }
-
-                            PIDebianPackage *package = [[PIDebianPackage alloc] initWithPackageDetails:packageDetails];
-                            [packageDetails release];
-
-                            [binaryImage setPackage:package];
-                            [package release];
                         }
                         [binaryImages setObject:binaryImage forKey:[NSNumber numberWithUnsignedLongLong:imageAddress]];
                         [binaryImage release];
@@ -829,42 +804,8 @@ static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableStr
                     package = [PIPackage packageForFile:path];
                 }
                 if (package != nil) {
-                    // Add package identifier and version.
-                    NSString *identifier = [package identifier];
-                    NSString *version = [package version];
-                    NSString *string = [[NSString alloc] initWithFormat:@" (%@ %@)",
-                            identifier ?: @"<unknown package>",
-                            version ?: @"<unknown version>"];
-                    [description appendString:string];
-                    [string release];
-
-                    // Add install date.
-                    [description appendString:@" ["];
-                    if (processingDeviceIsCrashedDevice_) {
-                        NSDate *installDate = [package installDate];
-                        if (installDate != nil) {
-                            // Format the date.
-                            char buf[29];
-                            const char *format = "%Y-%m-%d %H:%M:%S %z";
-                            time_t interval = (time_t)[installDate timeIntervalSince1970];
-                            if (strftime(buf, 29, format, localtime(&interval)) > 0) {
-                                // Append to line.
-                                NSString *string = [[NSString alloc] initWithCString:buf encoding:NSUTF8StringEncoding];
-                                [description appendString:string];
-                                [string release];
-                            } else {
-                                fprintf(stderr, "WARNING: Unable to format time interval: \"%ld\".\n", interval);
-                            }
-                        }
-                    }
-                    [description appendString:@"]"];
-
-                    // Add package name.
-                    NSString *name = [package name];
-                    string = [[NSString alloc] initWithFormat:@" \"%@\"",
-                            name ?: @"<unknown name>"];
-                    [description appendString:string];
-                    [string release];
+                    [description appendString:@" "];
+                    [description appendString:[package JSONRepresentation]];
                 }
 
                 [description appendString:@"\n"];
