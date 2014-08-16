@@ -45,7 +45,6 @@ static uint64_t uint64FromHexString(NSString *string) {
 
 @implementation CRCrashReport {
     CRCrashReportFilterType filterType_;
-    BOOL isAlreadySymbolicated_;
     BOOL processingDeviceIsCrashedDevice_;
 }
 
@@ -143,9 +142,6 @@ static uint64_t uint64FromHexString(NSString *string) {
 
         // Store filter type.
         filterType_ = filterType;
-
-        // Check if this log has already been symbolicated (by libsymbolicate).
-        isAlreadySymbolicated_ = [[properties_ objectForKey:kCrashReportSymbolicated] boolValue];
 
         // Parse the file.
         [self parse];
@@ -648,13 +644,11 @@ parse_thread:
                         // recorded package information.
                         // NOTE: Currently this is only done for binaries from
                         //       debian packages.
-                        if (isAlreadySymbolicated_) {
-                            NSString *string = [array objectAtIndex:7];
-                            if ([string length] > 0) {
-                                PIDebianPackage *package = [[PIDebianPackage alloc] initWithDetailsFromJSONString:string];
-                                [binaryImage setPackage:package];
-                                [package release];
-                            }
+                        NSString *string = [array objectAtIndex:7];
+                        if ([string length] > 0) {
+                            PIDebianPackage *package = [[PIDebianPackage alloc] initWithDetailsFromJSONString:string];
+                            [binaryImage setPackage:package];
+                            [package release];
                         }
                         [binaryImages setObject:binaryImage forKey:[NSNumber numberWithUnsignedLongLong:imageAddress]];
                         [binaryImage release];
