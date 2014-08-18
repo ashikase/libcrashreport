@@ -19,7 +19,7 @@
 
 #include <notify.h>
 #include <time.h>
-#include "common.h"
+#include "number_from_string.h"
 #include "system_info.h"
 
 // NOTE: These are are allowed to be accessed externally.

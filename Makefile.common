@@ -4,7 +4,7 @@ PKG_ID = jp.ashikase.libcrashreport
 libcrashreport_INSTALL_PATH = /usr/lib
 libcrashreport_OBJC_FILES = \
     Libraries/RegexKitLite/RegexKitLite.m \
-    lib/common.c \
+    Common/number_from_string.c \
     lib/CRBacktrace.mm \
     lib/CRBinaryImage.mm \
     lib/CRCrashReport.mm \
