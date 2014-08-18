@@ -5,7 +5,7 @@ Description: Library to parse and symbolicate crash reports.
     This library is based upon CrashReporter by kennytm.
 Architecture: iphoneos-arm
 Pre-Depends: firmware (>= 3.0)
-Depends: jp.ashikase.libsymbolicate (>= 1.6.0), jp.ashikase.libpackageinfo
+Depends: pcre, jp.ashikase.libsymbolicate (>= 1.6.0), jp.ashikase.libpackageinfo
 Depiction: http://moreinfo.thebigboss.org/moreinfo/depiction.php?file=libcrashreportData
 Homepage: http://github.com/ashikase/libcrashreport
 Maintainer: BigBoss <bigboss@thebigboss.org>

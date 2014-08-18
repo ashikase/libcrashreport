@@ -3,7 +3,6 @@ PKG_ID = jp.ashikase.libcrashreport
 
 libcrashreport_INSTALL_PATH = /usr/lib
 libcrashreport_OBJC_FILES = \
-    Libraries/RegexKitLite/RegexKitLite.m \
     Libraries/Common/number_from_string.c \
     lib/CRBacktrace.mm \
     lib/CRBinaryImage.mm \
@@ -11,8 +10,8 @@ libcrashreport_OBJC_FILES = \
     lib/CRException.mm \
     lib/CRStackFrame.mm \
     lib/CRThread.mm
-libcrashreport_LIBRARIES = icucore packageinfo symbolicate
-ADDITIONAL_CFLAGS = -DPKG_ID=\"$(PKG_ID)\" -ILibraries -ILibraries/Common -Iinclude
+libcrashreport_LIBRARIES = pcre packageinfo symbolicate
+ADDITIONAL_CFLAGS = -DPKG_ID=\"$(PKG_ID)\" -ILibraries/Common -Iinclude
 
 include theos/makefiles/common.mk
 include $(THEOS)/makefiles/library.mk
