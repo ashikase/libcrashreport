@@ -1,3 +1,10 @@
+> # Version 1.0.2
+> - - -
+> * FIX: Blamable
+>     * When parsing log files that had already been processed, was incorrectly marking which binaries were blamable.
+
+- - -
+
 > # Version 1.0.1
 > - - -
 > * MOD: Switched from RegexKitLite to PCRE.
