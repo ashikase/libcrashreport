@@ -688,7 +688,7 @@ parse_thread:
                         [path release];
 
                         // NOTE: Group index 3.
-                        [binaryImage setBlamable:strncmp(subject + ovector[6], "+", 1)];
+                        [binaryImage setBlamable:(strncmp(subject + ovector[6], "+", 1) == 0)];
 
                         if ([path isEqualToString:processPath]) {
                             [binaryImage setCrashedProcess:YES];
