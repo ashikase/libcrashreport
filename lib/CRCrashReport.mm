@@ -42,6 +42,7 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
 @implementation CRCrashReport {
     CRCrashReportFilterType filterType_;
     BOOL processingDeviceIsCrashedDevice_;
+    BOOL didParseDescriptionBody_;
 }
 
 @synthesize properties = properties_;
@@ -139,8 +140,8 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
         // Store filter type.
         filterType_ = filterType;
 
-        // Parse the file.
-        [self parse];
+        // Parse process info.
+        [self parseDescriptionHeader];
     }
     return self;
 }
@@ -233,6 +234,8 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
 }
 
 - (BOOL)blameUsingFilters:(NSDictionary *)filters {
+    [self parseDescriptionBodyIfNecessary];
+
     NSSet *binaryFilters = nil;
     NSSet *exceptionFilters = nil;
     NSSet *functionFilters = nil;
@@ -399,6 +402,8 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
 }
 
 - (BOOL)symbolicateUsingSystemRoot:(NSString *)systemRoot symbolMaps:(NSDictionary *)symbolMaps {
+    [self parseDescriptionBodyIfNecessary];
+
     CRException *exception = [self exception];
     NSDictionary *binaryImages = [self binaryImages];
 
@@ -521,17 +526,78 @@ static const char * const kRegexProcessInfo = "^([^:]+):\\s*(.*)";
 static const char * const kRegexStackFrame = "^(\\d+)\\s+.*\\S\\s+(?:0x)?([0-9a-f]+) (?:0x)?([0-9a-f]+) \\+ (?:0x)?\\d+";
 static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)(?: ([ +]{1}))? (?:.+?) (arm\\w*) *(<[0-9a-f]{32}>) *(.+?)(?:$| \\(| (\\{.*\\}))";
 
-- (void)parse {
+- (void)parseDescriptionHeader {
     NSString *description = [[self properties] objectForKey:kCrashReportDescription];
     if (description != nil) {
         // Create variables to store parsed information.
         NSMutableArray *processInfoKeys = [NSMutableArray new];
         NSMutableArray *processInfoObjects = [NSMutableArray new];
         CRException *exception = [CRException new];
+
+        // NOTE: Ovector element count must be a multiple of three, per pcre's
+        //       documentation. The first two-thirds of the vector contains the matches,
+        //       in (offset, length) pairs. The last third of the vector is used by pcre
+        //       as workspace, and ignored by us.
+        pcre *regex = prepareRegularExpression(kRegexProcessInfo);
+        int ovector[24];
+
+        // Process one line at a time.
+        NSArray *inputLines = [[description stringByReplacingOccurrencesOfString:@"\r" withString:@""] componentsSeparatedByString:@"\n"];
+        for (NSString *line in inputLines) {
+            // Stop if end of process info.
+            if ([line hasPrefix:@"Last Exception Backtrace:"] || [line hasPrefix:@"Thread 0"]) {
+                break;
+            }
+
+            // Parse process information.
+            const char *subject = [line UTF8String];
+            int numMatches = pcre_exec(regex, NULL, subject, [line length], 0, 0, ovector, 9);
+            if (numMatches == 3) {
+                NSString *key = newStringFromMatch(subject, ovector, 1);
+                NSString *object = newStringFromMatch(subject, ovector, 2);
+
+                if ([key isEqualToString:@"CrashReporter Key"]) {
+                    // Record whether device executing this code is the one that crashed.
+                    if ([object isEqualToString:inverseDeviceIdentifier()]) {
+                        processingDeviceIsCrashedDevice_ = YES;
+                    }
+                } else if ([key isEqualToString:@"Path"]) {
+                    // NOTE: For some reason, the process path
+                    //       is sometimes prefixed with multiple '/'
+                    //       characters.
+                    while ([object hasPrefix:@"//"]) {
+                        NSString *string = [object substringFromIndex:1];
+                        [object release];
+                        object = [string retain];
+                    }
+                } else if ([key isEqualToString:@"Exception Type"]) {
+                    [exception setType:object];
+                }
+
+                [processInfoKeys addObject:key];
+                [processInfoObjects addObject:object];
+                [key release];
+                [object release];
+            }
+        }
+        free(regex);
+
+        [self setProcessInfoKeys:processInfoKeys];
+        [self setProcessInfoObjects:processInfoObjects];
+        [self setException:exception];
+        [processInfoKeys release];
+        [processInfoObjects release];
+        [exception release];
+    }
+}
+
+- (void)parseDescriptionBody {
+    NSString *description = [[self properties] objectForKey:kCrashReportDescription];
+    if (description != nil) {
+        // Create variables to store parsed information.
         NSMutableArray *threads = [NSMutableArray new];
         NSMutableArray *registerState = [NSMutableArray new];
         NSMutableDictionary *binaryImages = [NSMutableDictionary new];
-        NSString *processPath = nil;
         CRThread *thread = nil;
         NSString *threadName = nil;
 
@@ -550,8 +616,11 @@ static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)
         //       documentation. The first two-thirds of the vector contains the matches,
         //       in (offset, length) pairs. The last third of the vector is used by pcre
         //       as workspace, and ignored by us.
-        pcre *regex = prepareRegularExpression(kRegexProcessInfo);
+        pcre *regex = NULL;
         int ovector[24];
+
+        NSString *processPath = [[self processInfo] objectForKey:@"Path"];
+        CRException *exception = [self exception];
 
         // Process one line at a time.
         NSArray *inputLines = [[description stringByReplacingOccurrencesOfString:@"\r" withString:@""] componentsSeparatedByString:@"\n"];
@@ -564,37 +633,8 @@ static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)
                         mode = ModeException;
                         break;
                     } else if (![line hasPrefix:@"Thread 0"]) {
-                        // Parse process information.
-                        const char *subject = [line UTF8String];
-                        int numMatches = pcre_exec(regex, NULL, subject, [line length], 0, 0, ovector, 9);
-                        if (numMatches == 3) {
-                            NSString *key = newStringFromMatch(subject, ovector, 1);
-                            NSString *object = newStringFromMatch(subject, ovector, 2);
-
-                            if ([key isEqualToString:@"CrashReporter Key"]) {
-                                // Record whether device executing this code is the one that crashed.
-                                if ([object isEqualToString:inverseDeviceIdentifier()]) {
-                                    processingDeviceIsCrashedDevice_ = YES;
-                                }
-                            } else if ([key isEqualToString:@"Path"]) {
-                                // NOTE: For some reason, the process path
-                                //       is sometimes prefixed with multiple '/'
-                                //       characters.
-                                while ([object hasPrefix:@"//"]) {
-                                    NSString *string = [object substringFromIndex:1];
-                                    [object release];
-                                    object = [string retain];
-                                }
-                                processPath = object;
-                            } else if ([key isEqualToString:@"Exception Type"]) {
-                                [exception setType:object];
-                            }
-
-                            [processInfoKeys addObject:key];
-                            [processInfoObjects addObject:object];
-                            [key release];
-                            [object release];
-                        }
+                        // Process Info.
+                        // NOTE: This is handled by parseDescriptionHeader.
                         break;
                     } else {
                         // Start of thread 0.
@@ -720,18 +760,19 @@ parse_thread:
         }
         free(regex);
 
-        [self setProcessInfoKeys:processInfoKeys];
-        [self setProcessInfoObjects:processInfoObjects];
-        [self setException:exception];
         [self setThreads:threads];
         [self setRegisterState:registerState];
         [self setBinaryImages:binaryImages];
-        [processInfoKeys release];
-        [processInfoObjects release];
-        [exception release];
         [threads release];
         [registerState release];
         [binaryImages release];
+    }
+}
+
+- (void)parseDescriptionBodyIfNecessary {
+    if (!didParseDescriptionBody_) {
+        [self parseDescriptionBody];
+        didParseDescriptionBody_ = YES;
     }
 }
 
