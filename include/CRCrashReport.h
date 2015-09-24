@@ -9,11 +9,18 @@
 
 @class NSString, NSDictionary;
 
+extern NSString * const kCrashReportBugType;
 extern NSString * const kCrashReportBlame;
 extern NSString * const kCrashReportDescription;
 extern NSString * const kCrashReportSymbolicated;
 
-typedef enum {
+typedef enum : NSInteger {
+    CRCrashReportTypeUnknown = -1,
+    CRCrashReportTypeCrash = 109,
+    CRCrashReportTypeLowMemory = 198
+} CRCrashReportType;
+
+typedef enum : NSUInteger {
     CRCrashReportFilterTypeNone,
     CRCrashReportFilterTypeFile,
     CRCrashReportFilterTypePackage
@@ -23,6 +30,7 @@ typedef enum {
 
 @interface CRCrashReport : NSObject
 @property(nonatomic, readonly) NSDictionary *properties;
+@property(nonatomic, readonly) CRCrashReportType type;
 @property(nonatomic, readonly) NSDictionary *processInfo;
 @property(nonatomic, readonly) CRException *exception;
 @property(nonatomic, readonly) NSArray *threads;

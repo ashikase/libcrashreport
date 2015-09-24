@@ -22,7 +22,8 @@
 #include "number_from_string.h"
 #include "system_info.h"
 
-// NOTE: These are are allowed to be accessed externally.
+// NOTE: These are allowed to be accessed externally.
+NSString * const kCrashReportBugType = @"bug_type";
 NSString * const kCrashReportBlame = @"blame";
 NSString * const kCrashReportDescription = @"description";
 NSString * const kCrashReportSymbolicated = @"symbolicated";
@@ -54,6 +55,7 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
 @synthesize processInfoKeys = processInfoKeys_;
 @synthesize processInfoObjects = processInfoObjects_;
 
+@dynamic type;
 @dynamic isSymbolicated;
 
 #pragma mark - Public API (Creation)
@@ -179,6 +181,26 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
     return [NSDictionary dictionaryWithObjects:[self processInfoObjects] forKeys:[self processInfoKeys]];
 }
 
+- (CRCrashReportType)type {
+    CRCrashReportType type = CRCrashReportTypeUnknown;
+
+    id object = [[self properties] objectForKey:kCrashReportBugType];
+    if ([object isKindOfClass:[NSString class]]) {
+        switch ([object integerValue]) {
+            case CRCrashReportTypeCrash:
+                type = CRCrashReportTypeCrash;
+                break;
+            case CRCrashReportTypeLowMemory:
+                type = CRCrashReportTypeLowMemory;
+                break;
+            default:
+                break;
+        }
+    }
+
+    return type;
+}
+
 #pragma mark - Public API (Representation)
 
 - (NSString *)stringRepresentation {
@@ -228,7 +250,6 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
 
 #pragma mark - Public API (Blame)
 
-
 /**
  * @return YES if blame was processed, NO otherwise.
  */
@@ -240,6 +261,10 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
  * @return YES if blame was processed, NO otherwise.
  */
 - (BOOL)blameUsingFilters:(NSDictionary *)filters {
+    if (![self canBeProcessedForBlame]) {
+        return NO;
+    }
+
     [self parseDescriptionBodyIfNecessary];
 
     NSSet *binaryFilters = nil;
@@ -386,7 +411,6 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
     [prefixFilters release];
     [reverseFilters release];
 
-    // NOTE: Currently, this always 'succeeds'.
     return YES;
 }
 
@@ -414,6 +438,10 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
  * @return YES if symbolication succeeded, NO otherwise.
  */
 - (BOOL)symbolicateUsingSystemRoot:(NSString *)systemRoot symbolMaps:(NSDictionary *)symbolMaps {
+    if (![self canBeSymbolicated]) {
+        return NO;
+    }
+
     [self parseDescriptionBodyIfNecessary];
 
     CRException *exception = [self exception];
@@ -478,7 +506,6 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
     [self setProperties:properties];
     [properties release];
 
-    // NOTE: Currently, this always 'succeeds'.
     return YES;
 }
 
@@ -790,6 +817,10 @@ parse_thread:
 
 #pragma mark - Private Methods (Symbolication)
 
+- (BOOL)canBeSymbolicated {
+    return ([self type] == CRCrashReportTypeCrash);
+}
+
 - (void)symbolicateStackFrame:(CRStackFrame *)stackFrame symbolicator:(SCSymbolicator *)symbolicator {
     // Retrieve symbol info from related binary image.
     NSNumber *imageAddress = [NSNumber numberWithUnsignedLongLong:[stackFrame imageAddress]];
@@ -798,6 +829,12 @@ parse_thread:
         SCSymbolInfo *symbolInfo = [symbolicator symbolInfoForAddress:[stackFrame address] inBinary:[binaryImage binaryInfo]];
         [stackFrame setSymbolInfo:symbolInfo];
     }
+}
+
+#pragma mark - Private methods (Blame)
+
+- (BOOL)canBeProcessedForBlame {
+    return ([self type] == CRCrashReportTypeCrash);
 }
 
 #pragma mark - Private Methods (Updating)
