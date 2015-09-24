@@ -172,7 +172,61 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
     [super dealloc];
 }
 
-#pragma mark - Public API (General)
+#pragma mark - Public API (Properties)
+
+- (NSDictionary *)processInfo {
+    return [NSDictionary dictionaryWithObjects:[self processInfoObjects] forKeys:[self processInfoKeys]];
+}
+
+#pragma mark - Public API (Representation)
+
+- (NSString *)stringRepresentation {
+    return [self stringRepresentation:[self isPropertyList]];
+}
+
+- (NSString *)stringRepresentation:(BOOL)asPropertyList {
+    NSString *result = nil;
+
+    if (asPropertyList) {
+        // Generate property list string.
+        NSError *error = nil;
+        NSData *data = [NSPropertyListSerialization dataWithPropertyList:[self properties] format:NSPropertyListXMLFormat_v1_0 options:0 error:&error];
+        if (data != nil) {
+            result = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+        } else {
+            fprintf(stderr, "ERROR: Unable to convert report to data: \"%s\".\n", [[error localizedDescription] UTF8String]);
+        }
+    } else {
+        // Generate IPS string.
+        Class $NSJSONSerialization = NSClassFromString(@"NSJSONSerialization");
+        if ($NSJSONSerialization == nil) {
+            fprintf(stderr, "ERROR: This version of iOS does not include NSJSONSerialization, which is required for creating IPS files.\n");
+            [self release];
+            return nil;
+        }
+
+        NSDictionary *properties = [self properties];
+        NSMutableDictionary *header = [[NSMutableDictionary alloc] initWithDictionary:properties];
+        [header removeObjectForKey:kCrashReportDescription];
+        NSString *description = [properties objectForKey:kCrashReportDescription];
+
+        NSError *error = nil;
+        NSData *data = [$NSJSONSerialization dataWithJSONObject:header options:0 error:&error];
+        if (data != nil) {
+            NSString *string = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+            result = [[NSString alloc] initWithFormat:@"%@\n%@", string, description];
+            [string release];
+        } else {
+            fprintf(stderr, "ERROR: Unable to convert report to data: \"%s\".\n", [[error localizedDescription] UTF8String]);
+        }
+        [header release];
+    }
+
+    return [result autorelease];
+}
+
+#pragma mark - Public API (Blame)
+
 
 - (BOOL)blame {
     return [self blameUsingFilters:nil];
@@ -327,49 +381,17 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
     return YES;
 }
 
-- (NSString *)stringRepresentation {
-    return [self stringRepresentation:[self isPropertyList]];
-}
+#pragma mark - Public API (Symbolication)
 
-- (NSString *)stringRepresentation:(BOOL)asPropertyList {
-    NSString *result = nil;
+- (BOOL)isSymbolicated {
+    BOOL isSymbolicated = NO;
 
-    if (asPropertyList) {
-        // Generate property list string.
-        NSError *error = nil;
-        NSData *data = [NSPropertyListSerialization dataWithPropertyList:[self properties] format:NSPropertyListXMLFormat_v1_0 options:0 error:&error];
-        if (data != nil) {
-            result = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-        } else {
-            fprintf(stderr, "ERROR: Unable to convert report to data: \"%s\".\n", [[error localizedDescription] UTF8String]);
-        }
-    } else {
-        // Generate IPS string.
-        Class $NSJSONSerialization = NSClassFromString(@"NSJSONSerialization");
-        if ($NSJSONSerialization == nil) {
-            fprintf(stderr, "ERROR: This version of iOS does not include NSJSONSerialization, which is required for creating IPS files.\n");
-            [self release];
-            return nil;
-        }
-
-        NSDictionary *properties = [self properties];
-        NSMutableDictionary *header = [[NSMutableDictionary alloc] initWithDictionary:properties];
-        [header removeObjectForKey:kCrashReportDescription];
-        NSString *description = [properties objectForKey:kCrashReportDescription];
-
-        NSError *error = nil;
-        NSData *data = [$NSJSONSerialization dataWithJSONObject:header options:0 error:&error];
-        if (data != nil) {
-            NSString *string = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-            result = [[NSString alloc] initWithFormat:@"%@\n%@", string, description];
-            [string release];
-        } else {
-            fprintf(stderr, "ERROR: Unable to convert report to data: \"%s\".\n", [[error localizedDescription] UTF8String]);
-        }
-        [header release];
+    id object = [[self properties] objectForKey:kCrashReportSymbolicated];
+    if ([object isKindOfClass:[NSNumber class]]) {
+        isSymbolicated = [object boolValue];
     }
 
-    return [result autorelease];
+    return isSymbolicated;
 }
 
 - (BOOL)symbolicate {
@@ -443,24 +465,7 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
     return YES;
 }
 
-#pragma mark - Public API (Properties)
-
-- (BOOL)isSymbolicated {
-    BOOL isSymbolicated = NO;
-
-    id object = [[self properties] objectForKey:kCrashReportSymbolicated];
-    if ([object isKindOfClass:[NSNumber class]]) {
-        isSymbolicated = [object boolValue];
-    }
-
-    return isSymbolicated;
-}
-
-- (NSDictionary *)processInfo {
-    return [NSDictionary dictionaryWithObjects:[self processInfoObjects] forKeys:[self processInfoKeys]];
-}
-
-#pragma mark - Private Methods
+#pragma mark - Private Methods (Parsing)
 
 static pcre *prepareRegularExpression(const char *pattern) {
     const char *errptr = NULL;
@@ -730,6 +735,8 @@ parse_thread:
     }
 }
 
+#pragma mark - Private Methods (Symbolication)
+
 - (void)symbolicateStackFrame:(CRStackFrame *)stackFrame symbolicator:(SCSymbolicator *)symbolicator {
     // Retrieve symbol info from related binary image.
     NSNumber *imageAddress = [NSNumber numberWithUnsignedLongLong:[stackFrame imageAddress]];
@@ -739,6 +746,8 @@ parse_thread:
         [stackFrame setSymbolInfo:symbolInfo];
     }
 }
+
+#pragma mark - Private Methods (Updating)
 
 static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableString *description) {
     uint64_t imageAddress = [binaryImage address];
