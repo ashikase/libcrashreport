@@ -919,7 +919,8 @@ static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableStr
         [description appendString:@"Binary Images (App Store):\n"];
         for (NSString *key in imageAddresses) {
             CRBinaryImage *binaryImage = [binaryImages objectForKey:key];
-            if ([[binaryImage path] hasPrefix:@"/var/mobile/Applications/"]) {
+            NSString *path = [binaryImage path];
+            if ([path hasPrefix:@"/var/mobile/Applications/"] || [path hasPrefix:@"/var/mobile/Containers/Bundle/Application/"]) {
                 addBinaryImageToDescription(binaryImage, description);
                 [description appendString:@"\n"];
                 [usedImages addObject:binaryImage];
