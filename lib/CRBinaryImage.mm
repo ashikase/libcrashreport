@@ -24,7 +24,7 @@
 
 @synthesize binaryInfo = binaryInfo_;
 @synthesize blamable = blamable_;
-@synthesize crashedProcess = crashedProcess_
+@synthesize crashedProcess = crashedProcess_;
 
 - (id)initWithPath:(NSString *)path address:(uint64_t)address size:(uint64_t)size architecture:(NSString *)architecture uuid:(NSString *)uuid {
     self = [super init];
