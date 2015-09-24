@@ -229,10 +229,16 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
 #pragma mark - Public API (Blame)
 
 
+/**
+ * @return YES if blame was processed, NO otherwise.
+ */
 - (BOOL)blame {
     return [self blameUsingFilters:nil];
 }
 
+/**
+ * @return YES if blame was processed, NO otherwise.
+ */
 - (BOOL)blameUsingFilters:(NSDictionary *)filters {
     [self parseDescriptionBodyIfNecessary];
 
@@ -397,10 +403,16 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
     return isSymbolicated;
 }
 
+/**
+ * @return YES if symbolication succeeded, NO otherwise.
+ */
 - (BOOL)symbolicate {
     return [self symbolicateUsingSystemRoot:nil symbolMaps:nil];
 }
 
+/**
+ * @return YES if symbolication succeeded, NO otherwise.
+ */
 - (BOOL)symbolicateUsingSystemRoot:(NSString *)systemRoot symbolMaps:(NSDictionary *)symbolMaps {
     [self parseDescriptionBodyIfNecessary];
 
