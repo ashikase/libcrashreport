@@ -14,14 +14,17 @@
 
 @implementation CRBinaryImage
 
-@synthesize path = path_;
 @synthesize address = address_;
 @synthesize size = size_;
 @synthesize architecture = architecture_;
 @synthesize uuid = uuid_;
-@synthesize binaryInfo = binaryInfo_;
+@synthesize path = path_;
+
 @synthesize package = package_;
+
+@synthesize binaryInfo = binaryInfo_;
 @synthesize blamable = blamable_;
+@synthesize crashedProcess = crashedProcess_
 
 - (id)initWithPath:(NSString *)path address:(uint64_t)address size:(uint64_t)size architecture:(NSString *)architecture uuid:(NSString *)uuid {
     self = [super init];
