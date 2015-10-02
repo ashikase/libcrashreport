@@ -1,3 +1,11 @@
+> # Version 1.0.3
+> - - -
+> * MOD: Updated support for identifying AppStore apps.
+>     * Filepath for AppStore apps changed in iOS 8.
+> * MOD: Only parse description body when necessary.
+> * FIX: Do not attempt to symbolicate or blame for non-crash type reports.
+>     * This should prevent crashing when processing jetsam (low memory) reports.
+
 > # Version 1.0.2
 > - - -
 > * FIX: Blamable

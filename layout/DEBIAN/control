@@ -1,6 +1,6 @@
 Package: jp.ashikase.libcrashreport
 Name: libcrashreport
-Version: 1.0.2
+Version: 1.0.3
 Description: Library to parse and symbolicate crash reports.
     This library is based upon CrashReporter by kennytm.
 Architecture: iphoneos-arm
