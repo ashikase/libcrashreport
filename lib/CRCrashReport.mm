@@ -201,6 +201,21 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
     return type;
 }
 
+- (NSArray *)threads {
+    [self parseDescriptionBodyIfNecessary];
+    return threads_;
+}
+
+- (NSArray *)registerState {
+    [self parseDescriptionBodyIfNecessary];
+    return registerState_;
+}
+
+- (NSDictionary *)binaryImages {
+    [self parseDescriptionBodyIfNecessary];
+    return binaryImages_;
+}
+
 #pragma mark - Public API (Representation)
 
 - (NSString *)stringRepresentation {
