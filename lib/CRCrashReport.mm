@@ -87,8 +87,10 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
         id plist = nil;
         if ([NSPropertyListSerialization respondsToSelector:@selector(propertyListWithData:options:format:error:)]) {
             plist = [NSPropertyListSerialization propertyListWithData:data options:0 format:NULL error:NULL];
+#if TARGET_OS_IPHONE
         } else {
             plist = [NSPropertyListSerialization propertyListFromData:data mutabilityOption:0 format:NULL errorDescription:NULL];
+#endif
         }
 
         if (plist != nil) {
