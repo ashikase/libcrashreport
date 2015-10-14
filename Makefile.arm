@@ -1,6 +1,6 @@
 export ARCHS = armv6 armv7 armv7s
 export TARGET = iphone:clang
 export TARGET_IPHONEOS_DEPLOYMENT_VERSION = 3.0
-export ADDITIONAL_LDFLAGS = -L$(THEOS)/lib/arm
+export ADDITIONAL_LDFLAGS = -Wl,-segalign,4000 -L$(THEOS)/lib/arm
 
 include Makefile.common
