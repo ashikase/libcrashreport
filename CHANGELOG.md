@@ -1,3 +1,10 @@
+> # Version 1.0.3.1
+> - - -
+> * FIX: iOS 9
+>     * As per Jay Freeman (saurik): "iOS 9 changed the 32-bit pagesize on 64-bit CPUs from 4096 bytes to 16384: all 32-bit binaries must now be compiled with -Wl,-segalign,4000.".
+
+- - -
+
 > # Version 1.0.3
 > - - -
 > * MOD: Updated support for identifying AppStore apps.
@@ -5,6 +12,8 @@
 > * MOD: Only parse description body when necessary.
 > * FIX: Do not attempt to symbolicate or blame for non-crash type reports.
 >     * This should prevent crashing when processing jetsam (low memory) reports.
+
+- - -
 
 > # Version 1.0.2
 > - - -
