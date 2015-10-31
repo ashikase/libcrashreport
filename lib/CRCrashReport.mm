@@ -36,6 +36,7 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
 @property(nonatomic, retain) NSDictionary *binaryImages;
 @property(nonatomic, assign) BOOL isPropertyList;
 
+@property(nonatomic, readonly) NSArray *descriptionHeader;
 @property(nonatomic, retain) NSArray *processInfoKeys;
 @property(nonatomic, retain) NSArray *processInfoObjects;
 @end
@@ -52,6 +53,7 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
 @synthesize registerState = registerState_;
 @synthesize binaryImages = binaryImages_;
 
+@synthesize descriptionHeader = descriptionHeader_;
 @synthesize processInfoKeys = processInfoKeys_;
 @synthesize processInfoObjects = processInfoObjects_;
 
@@ -170,6 +172,7 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
     [properties_ release];
     [processInfoKeys_ release];
     [processInfoObjects_ release];
+    [descriptionHeader_ release];
     [exception_ release];
     [threads_ release];
     [registerState_ release];
@@ -576,9 +579,28 @@ static const char * const kRegexProcessInfo = "^([^:]+):\\s*(.*)";
 static const char * const kRegexStackFrame = "^(\\d+)\\s+.*\\S\\s+(?:0x)?([0-9a-f]+) (?:0x)?([0-9a-f]+) \\+ (?:0x)?\\d+";
 static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)(?: ([ +]{1}))? (?:.+?) (arm\\w*) *(<[0-9a-f]{32}>) *(.+?)(?:$| \\(| (\\{.*\\}))";
 
+- (NSArray *)descriptionHeader {
+    if (descriptionHeader_ == nil) {
+        NSString *description = [[self properties] objectForKey:kCrashReportDescription];
+        if (description != nil) {
+            NSMutableArray *header = [[NSMutableArray alloc] init];
+            NSArray *inputLines = [[description stringByReplacingOccurrencesOfString:@"\r" withString:@""] componentsSeparatedByString:@"\n"];
+            for (NSString *line in inputLines) {
+                // Stop if end of process info.
+                if ([line hasPrefix:@"Last Exception Backtrace:"] || [line hasPrefix:@"Thread 0"]) {
+                    break;
+                }
+                [header addObject:line];
+            }
+            descriptionHeader_ = header;
+        }
+    }
+    return descriptionHeader_;
+}
+
 - (void)parseDescriptionHeader {
-    NSString *description = [[self properties] objectForKey:kCrashReportDescription];
-    if (description != nil) {
+    NSArray *descriptionHeader = [self descriptionHeader];
+    if (descriptionHeader != nil) {
         // Create variables to store parsed information.
         NSMutableArray *processInfoKeys = [NSMutableArray new];
         NSMutableArray *processInfoObjects = [NSMutableArray new];
@@ -592,13 +614,7 @@ static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)
         int ovector[24];
 
         // Process one line at a time.
-        NSArray *inputLines = [[description stringByReplacingOccurrencesOfString:@"\r" withString:@""] componentsSeparatedByString:@"\n"];
-        for (NSString *line in inputLines) {
-            // Stop if end of process info.
-            if ([line hasPrefix:@"Last Exception Backtrace:"] || [line hasPrefix:@"Thread 0"]) {
-                break;
-            }
-
+        for (NSString *line in descriptionHeader) {
             // Parse process information.
             const char *subject = [line UTF8String];
             int numMatches = pcre_exec(regex, NULL, subject, [line length], 0, 0, ovector, 9);
@@ -864,21 +880,8 @@ static void addBinaryImageToDescription(CRBinaryImage *binaryImage, NSMutableStr
 - (void)updateDescription {
     NSMutableString *description = [NSMutableString new];
 
-    // Add process information.
-    NSArray *processInfoKeys = [self processInfoKeys];
-    NSArray *processInfoObjects = [self processInfoObjects];
-    NSUInteger count = [processInfoKeys count];
-    for (NSUInteger i = 0; i < count; ++i) {
-        NSString *key = [processInfoKeys objectAtIndex:i];
-        NSString *object = [processInfoObjects objectAtIndex:i];
-
-        NSString *keyString = [[NSString alloc] initWithFormat:@"%@:", key];
-        NSString *string = [[NSString alloc] initWithFormat:@"%-21s%@\n", [keyString UTF8String], object];
-        [description appendString:string];
-        [string release];
-        [keyString release];
-    }
-
+    // Add header.
+    [description appendString:[[self descriptionHeader] componentsJoinedByString:@"\n"]];
     [description appendString:@"\n"];
 
     // Add exception.
