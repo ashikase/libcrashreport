@@ -1,3 +1,12 @@
+Release Notes
+
+> # Version 1.0.4
+> - - -
+> * MOD: Do not alter description header.
+> * FIX: Prevent buffer overflow when parsing numeric values.
+
+- - -
+
 > # Version 1.0.3.1
 > - - -
 > * FIX: iOS 9
