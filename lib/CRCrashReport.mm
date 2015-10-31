@@ -544,21 +544,15 @@ static NSString *newStringFromMatch(const char *subject, int *ovector, unsigned 
 }
 
 static uint64_t uint64FromMatch(const char *subject, int *ovector, unsigned groupIndex) {
-    char buf[17];
     unsigned index = 2 * groupIndex;
     unsigned length = (ovector[index + 1] - ovector[index]);
-    strncpy(buf, (subject + ovector[index]), length);
-    buf[length] = '\0';
-    return (uint64_t)unsignedLongLongFromString(buf, strlen(buf));
+    return (uint64_t)unsignedLongLongFromString((subject + ovector[index]), length);
 }
 
 static uint64_t uint64FromHexMatch(const char *subject, int *ovector, unsigned groupIndex) {
-    char buf[17];
     unsigned index = 2 * groupIndex;
     unsigned length = (ovector[index + 1] - ovector[index]);
-    strncpy(buf, (subject + ovector[index]), length);
-    buf[length] = '\0';
-    return (uint64_t)unsignedLongLongFromHexString(buf, strlen(buf));
+    return (uint64_t)unsignedLongLongFromHexString((subject + ovector[index]), length);
 }
 
 static CRStackFrame *stackFrameWithString(NSString *string, pcre *regex, int *ovector) {
