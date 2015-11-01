@@ -1,5 +1,12 @@
 Release Notes
 
+> # Version 1.0.5
+> - - -
+> * MOD: When processing blame, after considering exception and crashed threads, also consider other threads.
+>     * This is important for cases where dispatch is involved.
+
+- - -
+
 > # Version 1.0.4
 > - - -
 > * MOD: Do not alter description header.
