@@ -349,7 +349,8 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
 
         // Retrieve the thread that crashed
         CRThread *crashedThread = nil;
-        for (CRThread *thread in [self threads]) {
+        NSArray *threads = [self threads];
+        for (CRThread *thread in threads) {
             if ([thread crashed]) {
                 crashedThread = thread;
                 break;
@@ -359,8 +360,9 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
         // Determine blame.
         NSMutableArray *blame = [NSMutableArray new];
 
-        // NOTE: We first look at any exception backtrace, and then the
-        //       backtrace of the thread that crashed.
+        // NOTE: We first look at any exception backtrace, then the
+        //       backtrace of the thread that crashed, and finally the
+        //       backtraces of all other threads.
         NSMutableArray *backtraces = [NSMutableArray new];
         NSArray *stackFrames = [[self exception] stackFrames];
         if (stackFrames != nil) {
@@ -370,6 +372,15 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
         if (stackFrames != nil) {
             [backtraces addObject:stackFrames];
         }
+        for (CRThread *thread in threads) {
+            if (![thread crashed]) {
+                stackFrames = [thread stackFrames];
+                if (stackFrames != nil) {
+                    [backtraces addObject:stackFrames];
+                }
+            }
+        }
+
         for (NSArray *stackFrames in backtraces) {
             for (CRStackFrame *stackFrame in stackFrames) {
                 // Retrieve info for related binary image.
