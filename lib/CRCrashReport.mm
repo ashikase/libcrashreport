@@ -632,6 +632,12 @@ static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)
             if (numMatches == 3) {
                 NSString *key = newStringFromMatch(subject, ovector, 1);
                 NSString *object = newStringFromMatch(subject, ovector, 2);
+                if (object == nil) {
+                    // FIXME: Some entries contain multiple lines, beginning on
+                    //        the next line. Update to handle this instead of
+                    //        skipping.
+                    continue;
+                }
 
                 if ([key isEqualToString:@"CrashReporter Key"]) {
                     // Record whether device executing this code is the one that crashed.
