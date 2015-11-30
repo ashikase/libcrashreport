@@ -1,5 +1,18 @@
 Release Notes
 
+> # Version 1.1.0
+> - - -
+> * NEW: arm64
+>     * Added arm64 slice.
+> * MOD: armv7(s)
+>     * Removed armv7 and armv7s slices.
+> * MOD: Regex Engine
+>     * Switched engine used for regular expressions from pcre to iOS's included ICU (icucore).
+> * FIX: Crash
+>     * Check for nil result when parsing description header to prevent a crash.
+
+- - -
+
 > # Version 1.0.5
 > - - -
 > * MOD: When processing blame, after considering exception and crashed threads, also consider other threads.
