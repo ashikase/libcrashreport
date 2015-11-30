@@ -17,8 +17,8 @@
 #import "CRThread.h"
 
 #include <notify.h>
-#include <pcre.h>
 #include <time.h>
+#include <unicode/uregex.h>
 #include "number_from_string.h"
 #include "system_info.h"
 
@@ -542,42 +542,93 @@ NSString * const kCrashReportSymbolicated = @"symbolicated";
 
 #pragma mark - Private Methods (Parsing)
 
-static pcre *prepareRegularExpression(const char *pattern) {
-    const char *errptr = NULL;
-    int erroffset;
-    pcre *code = pcre_compile(pattern, 0, &errptr, &erroffset, NULL);
-    if (code == NULL) {
-        fprintf(stderr, "ERROR: Failed to compile regular expression: %s\n", errptr);
+static URegularExpression *prepareRegularExpression(const char *pattern) {
+    UParseError error;
+    UErrorCode status = U_ZERO_ERROR;
+    URegularExpression *regex = uregex_openC(pattern, 0, &error, &status);
+    if (U_FAILURE(status)) {
+        fprintf(stderr, "ERROR: Failed to compile regular expression: %s\n", u_errorName(status));
     }
-    return code;
+    return regex;
 }
 
-static NSString *newStringFromMatch(const char *subject, int *ovector, unsigned groupIndex) {
-    unsigned index = 2 * groupIndex;
-    return [[NSString alloc] initWithBytes:(void *)(subject + ovector[index]) length:(ovector[index + 1] - ovector[index]) encoding:NSUTF8StringEncoding];
+static BOOL matchesRegularExpression(URegularExpression *regex, NSString *string) {
+    BOOL result = NO;
+
+    const UChar *data = (const uint16_t *)[string cStringUsingEncoding:NSUTF16StringEncoding];
+    const size_t size = [string length];
+
+    UErrorCode status = U_ZERO_ERROR;
+    uregex_setText(regex, data, size, &status);
+    if (U_SUCCESS(status)) {
+        status = U_ZERO_ERROR;
+        UBool matches = uregex_matches(regex, 0, &status);
+        if (U_SUCCESS(status)) {
+            result = (BOOL)matches;
+        } else {
+            fprintf(stderr, "ERROR: Failed to check for match against regular expression: %s\n", u_errorName(status));
+        }
+    } else {
+        fprintf(stderr, "ERROR: Failed to set string to match against regular expression: %s\n", u_errorName(status));
+    }
+
+    return result;
 }
 
-static uint64_t uint64FromMatch(const char *subject, int *ovector, unsigned groupIndex) {
-    unsigned index = 2 * groupIndex;
-    unsigned length = (ovector[index + 1] - ovector[index]);
-    return (uint64_t)unsignedLongLongFromString((subject + ovector[index]), length);
+
+static NSString *newStringFromMatch(URegularExpression *regex, unsigned groupIndex) {
+    NSString *result = nil;
+
+    UErrorCode status = U_ZERO_ERROR;
+    int32_t length = uregex_group(regex, groupIndex, NULL, 0, &status);
+    if (status == U_BUFFER_OVERFLOW_ERROR) {
+        UChar *buf = (UChar *)malloc(length * sizeof(UChar));
+        if (buf != NULL) {
+            status = U_ZERO_ERROR;
+            uregex_group(regex, groupIndex, buf, length, &status);
+            if (U_SUCCESS(status)) {
+                result = [[NSString alloc] initWithCharacters:(const unichar *)buf length:length];
+            }
+            free(buf);
+        }
+    }
+
+    return result;
 }
 
-static uint64_t uint64FromHexMatch(const char *subject, int *ovector, unsigned groupIndex) {
-    unsigned index = 2 * groupIndex;
-    unsigned length = (ovector[index + 1] - ovector[index]);
-    return (uint64_t)unsignedLongLongFromHexString((subject + ovector[index]), length);
+static uint64_t uint64FromMatch(URegularExpression *regex, unsigned groupIndex) {
+    uint64_t result = 0;
+
+    NSString *string = newStringFromMatch(regex, groupIndex);
+    if (string != nil) {
+        const char *cstr = [string UTF8String];
+        result = (uint64_t)unsignedLongLongFromString(cstr, strlen(cstr));
+        [string release];
+    }
+
+    return result;
 }
 
-static CRStackFrame *stackFrameWithString(NSString *string, pcre *regex, int *ovector) {
+static uint64_t uint64FromHexMatch(URegularExpression *regex, unsigned groupIndex) {
+    uint64_t result = 0;
+
+    NSString *string = newStringFromMatch(regex, groupIndex);
+    if (string != nil) {
+        const char *cstr = [string UTF8String];
+        result = (uint64_t)unsignedLongLongFromHexString(cstr, strlen(cstr));
+        [string release];
+    }
+
+    return result;
+}
+
+static CRStackFrame *stackFrameWithString(URegularExpression *regex, NSString *string) {
     CRStackFrame *stackFrame = nil;
-    const char *subject = [string UTF8String];
-    int numMatches = pcre_exec(regex, NULL, subject, [string length], 0, 0, ovector, 12);
-    if (numMatches == 4) {
-        stackFrame = [CRStackFrame new];
-        stackFrame.depth = uint64FromMatch(subject, ovector, 1);
-        stackFrame.address = uint64FromHexMatch(subject, ovector, 2);
-        stackFrame.imageAddress = uint64FromHexMatch(subject, ovector, 3);
+    if (matchesRegularExpression(regex, string)) {
+        stackFrame = [[CRStackFrame alloc] init];
+        stackFrame.depth = uint64FromMatch(regex, 1);
+        stackFrame.address = uint64FromHexMatch(regex, 2);
+        stackFrame.imageAddress = uint64FromHexMatch(regex, 3);
     }
     return [stackFrame autorelease];
 }
@@ -587,7 +638,7 @@ static CRStackFrame *stackFrameWithString(NSString *string, pcre *regex, int *ov
 //       different format for appending package information.
 // TODO: Consider removing " (" at some point.
 static const char * const kRegexProcessInfo = "^([^:]+):\\s*(.*)";
-static const char * const kRegexStackFrame = "^(\\d+)\\s+.*\\S\\s+(?:0x)?([0-9a-f]+) (?:0x)?([0-9a-f]+) \\+ (?:0x)?\\d+";
+static const char * const kRegexStackFrame = "^(\\d+)\\s+.*\\S\\s+(?:0x)?([0-9a-f]+) (?:0x)?([0-9a-f]+) \\+ (?:0x)?\\d+(?:.*)";
 static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)(?: ([ +]{1}))? (?:.+?) (arm\\w*) *(<[0-9a-f]{32}>) *(.+?)(?:$| \\(| (\\{.*\\}))";
 
 - (NSArray *)descriptionHeader {
@@ -617,21 +668,15 @@ static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)
         NSMutableArray *processInfoObjects = [NSMutableArray new];
         CRException *exception = [CRException new];
 
-        // NOTE: Ovector element count must be a multiple of three, per pcre's
-        //       documentation. The first two-thirds of the vector contains the matches,
-        //       in (offset, length) pairs. The last third of the vector is used by pcre
-        //       as workspace, and ignored by us.
-        pcre *regex = prepareRegularExpression(kRegexProcessInfo);
-        int ovector[24];
+        // Prepare regular expression.
+        URegularExpression *regex = prepareRegularExpression(kRegexProcessInfo);
 
         // Process one line at a time.
         for (NSString *line in descriptionHeader) {
             // Parse process information.
-            const char *subject = [line UTF8String];
-            int numMatches = pcre_exec(regex, NULL, subject, [line length], 0, 0, ovector, 9);
-            if (numMatches == 3) {
-                NSString *key = newStringFromMatch(subject, ovector, 1);
-                NSString *object = newStringFromMatch(subject, ovector, 2);
+            if (matchesRegularExpression(regex, line)) {
+                NSString *key = newStringFromMatch(regex, 1);
+                NSString *object = newStringFromMatch(regex, 2);
                 if (object == nil) {
                     // FIXME: Some entries contain multiple lines, beginning on
                     //        the next line. Update to handle this instead of
@@ -663,7 +708,7 @@ static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)
                 [object release];
             }
         }
-        free(regex);
+        uregex_close(regex);
 
         [self setProcessInfoKeys:processInfoKeys];
         [self setProcessInfoObjects:processInfoObjects];
@@ -693,14 +738,7 @@ static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)
             ModeBinaryImage,
         } mode = ModeProcessInfo;
 
-        // NOTE: Use a single array for capturing output addresses, sized for
-        //       the regex with the largest number of capture groups (7 + 1).
-        // NOTE: Ovector element count must be a multiple of three, per pcre's
-        //       documentation. The first two-thirds of the vector contains the matches,
-        //       in (offset, length) pairs. The last third of the vector is used by pcre
-        //       as workspace, and ignored by us.
-        pcre *regex = NULL;
-        int ovector[24];
+        URegularExpression *regex = NULL;
 
         NSString *processPath = [[self processInfo] objectForKey:@"Path"];
         CRException *exception = [self exception];
@@ -711,7 +749,7 @@ static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)
             switch (mode) {
                 case ModeProcessInfo:
                     if ([line hasPrefix:@"Last Exception Backtrace:"]) {
-                        free(regex);
+                        uregex_close(regex);
                         regex = prepareRegularExpression(kRegexStackFrame);
                         mode = ModeException;
                         break;
@@ -721,7 +759,7 @@ static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)
                         break;
                     } else {
                         // Start of thread 0.
-                        free(regex);
+                        uregex_close(regex);
                         regex = prepareRegularExpression(kRegexStackFrame);
                         mode = ModeThread;
                         goto parse_thread;
@@ -747,7 +785,7 @@ static const char * const kRegexBinaryImage = "^ *0x([0-9a-f]+) - *0x([0-9a-f]+)
                                 ++depth;
                             }
                         } else if ([line length] > 0) {
-                            CRStackFrame *stackFrame = stackFrameWithString(line, regex, ovector);
+                            CRStackFrame *stackFrame = stackFrameWithString(regex, line);
                             if (stackFrame != nil) {
                                 [exception addStackFrame:stackFrame];
                             }
@@ -781,7 +819,7 @@ parse_thread:
                             }
                             [thread setCrashed:([line rangeOfString:@"Crashed"].location != NSNotFound)];
                         } else {
-                            CRStackFrame *stackFrame = stackFrameWithString(line, regex, ovector);
+                            CRStackFrame *stackFrame = stackFrameWithString(regex, line);
                             if (stackFrame != nil) {
                                 [thread addStackFrame:stackFrame];
                             }
@@ -791,7 +829,7 @@ parse_thread:
 
                 case ModeRegisterState:
                     if ([line hasPrefix:@"Binary Images"]) {
-                        free(regex);
+                        uregex_close(regex);
                         regex = prepareRegularExpression(kRegexBinaryImage);
                         mode = ModeBinaryImage;
                     } else if ([line length] > 0) {
@@ -800,14 +838,12 @@ parse_thread:
                     break;
 
                 case ModeBinaryImage: {
-                    const char *subject = [line UTF8String];
-                    int numMatches = pcre_exec(regex, NULL, subject, [line length], 0, 0, ovector, 24);
-                    if (numMatches >= 7) {
-                        uint64_t imageAddress = uint64FromHexMatch(subject, ovector, 1);
-                        uint64_t size = uint64FromHexMatch(subject, ovector, 2) - imageAddress;
-                        NSString *arch = newStringFromMatch(subject, ovector, 4);
-                        NSString *uuid = newStringFromMatch(subject, ovector, 5);
-                        NSString *path = newStringFromMatch(subject, ovector, 6);
+                    if (matchesRegularExpression(regex, line)) {
+                        uint64_t imageAddress = uint64FromHexMatch(regex, 1);
+                        uint64_t size = uint64FromHexMatch(regex, 2) - imageAddress;
+                        NSString *arch = newStringFromMatch(regex, 4);
+                        NSString *uuid = newStringFromMatch(regex, 5);
+                        NSString *path = newStringFromMatch(regex, 6);
 
                         CRBinaryImage *binaryImage = [[CRBinaryImage alloc] initWithPath:path address:imageAddress size:size architecture:arch uuid:uuid];
 
@@ -816,7 +852,12 @@ parse_thread:
                         [path release];
 
                         // NOTE: Group index 3.
-                        [binaryImage setBlamable:(strncmp(subject + ovector[6], "+", 1) == 0)];
+
+                        NSString *blamable = newStringFromMatch(regex, 3);
+                        if (blamable != nil) {
+                            [binaryImage setBlamable:(strncmp([blamable UTF8String], "+", 1) == 0)];
+                            [blamable release];
+                        }
 
                         if ([path isEqualToString:processPath]) {
                             [binaryImage setCrashedProcess:YES];
@@ -826,8 +867,8 @@ parse_thread:
                         // recorded package information.
                         // NOTE: Currently this is only done for binaries from
                         //       debian packages.
-                        if (numMatches > 7) {
-                            NSString *string = newStringFromMatch(subject, ovector, 7);
+                        NSString *string = newStringFromMatch(regex, 7);
+                        if (string != nil) {
                             PIDebianPackage *package = [[PIDebianPackage alloc] initWithDetailsFromJSONString:string];
                             [binaryImage setPackage:package];
                             [package release];
@@ -841,7 +882,7 @@ parse_thread:
                 }
             }
         }
-        free(regex);
+        uregex_close(regex);
 
         [self setThreads:threads];
         [self setRegisterState:registerState];
